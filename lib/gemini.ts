@@ -1,14 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const API_KEY = process.env.GEMINI_API_KEY;
-
-if (!API_KEY) {
-    throw new Error('Please define the GEMINI_API_KEY environment variable');
-}
-
-const genAI = new GoogleGenerativeAI(API_KEY);
-const model = genAI.getGenerativeModel({ model: 'gemini-pro' }); // or 'gemini-1.5-flash' depending on access
-
+// Lazy initialization to avoid build failures
 interface FixResult {
     explanation: string;
     rootCause: string;
@@ -19,6 +11,15 @@ interface FixResult {
 }
 
 export async function generateErrorFix(errorLog: string): Promise<FixResult> {
+    const API_KEY = process.env.GEMINI_API_KEY;
+
+    if (!API_KEY) {
+        throw new Error('Please define the GEMINI_API_KEY environment variable in Vercel Settings');
+    }
+
+    const genAI = new GoogleGenerativeAI(API_KEY);
+    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+
     const prompt = `
     You are a senior debugger. Analyze the following programming error and provide a structured solution.
     
