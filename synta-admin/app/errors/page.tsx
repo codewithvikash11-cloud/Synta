@@ -1,18 +1,22 @@
-import connectToDatabase from '@/lib/mongodb';
-
-export const dynamic = 'force-dynamic';
-import ErrorModel from '@/lib/models/Error';
 import Link from 'next/link';
 import { BadgeAlert, Search, AlertCircle, ArrowUpDown } from 'lucide-react';
 
-async function getErrors(status = 'UNPUBLISHED') {
-    await connectToDatabase();
-    const errors = await ErrorModel.find({ status })
-        .sort({ createdAt: -1 })
-        .limit(50) // Pagination limit
-        .lean();
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
-    return JSON.parse(JSON.stringify(errors));
+async function getErrors(status = 'UNPUBLISHED') {
+    const baseUrl = process.env.NEXT_PUBLIC_ADMIN_BASE_URL || 'http://localhost:3000';
+    try {
+        const res = await fetch(`${baseUrl}/api/errors?status=${status}`, {
+            cache: 'no-store',
+            next: { revalidate: 0 }
+        });
+
+        if (!res.ok) return [];
+        return res.json();
+    } catch (error) {
+        return [];
+    }
 }
 
 export default async function ErrorsPage({

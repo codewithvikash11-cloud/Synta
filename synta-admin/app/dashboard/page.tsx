@@ -1,7 +1,3 @@
-import connectToDatabase from '@/lib/mongodb';
-
-export const dynamic = 'force-dynamic';
-import ErrorModel from '@/lib/models/Error';
 import Link from 'next/link';
 import {
     Activity,
@@ -11,37 +7,39 @@ import {
     AlertTriangle
 } from 'lucide-react';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 async function getStats() {
-    await connectToDatabase();
+    const baseUrl = process.env.NEXT_PUBLIC_ADMIN_BASE_URL || 'http://localhost:3000';
+    try {
+        const res = await fetch(`${baseUrl}/api/stats`, {
+            cache: 'no-store',
+            next: { revalidate: 0 }
+        });
 
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+        if (!res.ok) {
+            console.error('Stats fetch failed:', res.status, res.statusText);
+            return null;
+        }
 
-    const [
-        totalErrors,
-        pendingErrors,
-        publishedErrors,
-        todayErrors,
-        recentActivity
-    ] = await Promise.all([
-        ErrorModel.countDocuments(),
-        ErrorModel.countDocuments({ status: 'UNPUBLISHED' }),
-        ErrorModel.countDocuments({ status: 'PUBLISHED' }),
-        ErrorModel.countDocuments({ createdAt: { $gte: todayStart } }),
-        ErrorModel.find().sort({ createdAt: -1 }).limit(10).lean()
-    ]);
-
-    return {
-        totalErrors,
-        pendingErrors,
-        publishedErrors,
-        todayErrors,
-        recentActivity: JSON.parse(JSON.stringify(recentActivity))
-    };
+        return res.json();
+    } catch (error) {
+        console.error('Stats fetch error:', error);
+        return null;
+    }
 }
 
 export default async function DashboardPage() {
     const stats = await getStats();
+
+    if (!stats) {
+        return (
+            <div className="p-8 text-center text-red-400">
+                Failed to load dashboard data. Please check your connection and API URL.
+            </div>
+        );
+    }
 
     return (
         <div className="p-8 max-w-7xl mx-auto">
@@ -95,7 +93,7 @@ export default async function DashboardPage() {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800 text-sm text-slate-300">
-                        {stats.recentActivity.map((err: any) => (
+                        {stats.recentActivity && stats.recentActivity.map((err: any) => (
                             <tr key={err._id} className="hover:bg-slate-800/50 transition">
                                 <td className="p-4 font-mono truncate max-w-md text-xs">
                                     {err.rawError.substring(0, 80)}...
@@ -116,7 +114,7 @@ export default async function DashboardPage() {
                                 </td>
                             </tr>
                         ))}
-                        {stats.recentActivity.length === 0 && (
+                        {(!stats.recentActivity || stats.recentActivity.length === 0) && (
                             <tr>
                                 <td colSpan={4} className="p-8 text-center text-slate-500">No activity yet.</td>
                             </tr>

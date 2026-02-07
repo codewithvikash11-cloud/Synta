@@ -1,51 +1,22 @@
-import connectToDatabase from '@/lib/mongodb';
-
-export const dynamic = 'force-dynamic';
-import ErrorModel from '@/lib/models/Error';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronLeft } from 'lucide-react';
 import ReviewForm from '@/components/ReviewForm';
 
-import { calculateSimilarity } from '@/lib/similarity';
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
-async function getError(id: string) {
+async function getErrorData(id: string) {
+    const baseUrl = process.env.NEXT_PUBLIC_ADMIN_BASE_URL || 'http://localhost:3000';
     try {
-        await connectToDatabase();
-        const error = await ErrorModel.findById(id).lean();
-        if (!error) return null;
-        return JSON.parse(JSON.stringify(error));
-    } catch (e) {
-        return null;
-    }
-}
+        const res = await fetch(`${baseUrl}/api/errors/${id}`, {
+            cache: 'no-store',
+            next: { revalidate: 0 }
+        });
 
-async function findDuplicate(currentError: any) {
-    try {
-        // Fetch last 100 errors to compare (excluding self)
-        const recentErrors = await ErrorModel.find({
-            _id: { $ne: currentError._id }
-        })
-            .sort({ createdAt: -1 })
-            .limit(100)
-            .select('rawError _id status') // Minimal fields
-            .lean();
-
-        let bestMatch = { id: '', score: 0, status: '' };
-
-        for (const err of recentErrors) {
-            const score = calculateSimilarity(currentError.rawError, (err as any).rawError);
-            if (score > bestMatch.score) {
-                bestMatch = {
-                    id: (err as any)._id.toString(),
-                    score,
-                    status: (err as any).status
-                };
-            }
-        }
-
-        return bestMatch.score > 80 ? bestMatch : null;
-    } catch (e) {
+        if (!res.ok) return null;
+        return res.json();
+    } catch (error) {
         return null;
     }
 }
@@ -56,17 +27,13 @@ export default async function ErrorReviewPage({
     params: Promise<{ id: string }>;
 }) {
     const { id } = await params;
-    const error = await getError(id);
+    const data = await getErrorData(id);
 
-    if (!error) {
+    if (!data || !data.error) {
         notFound();
     }
 
-    const duplicate = await findDuplicate(error);
-
-    if (!error) {
-        notFound();
-    }
+    const { error, duplicate } = data;
 
     return (
         <div className="h-screen flex flex-col bg-slate-950">
